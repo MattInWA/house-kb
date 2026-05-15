@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Edit Location — House KB{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="breadcrumb"><a href="{{ url_for('locations') }}">Locations</a> / <a href="{{ url_for('location_detail', loc_id=loc.id) }}">{{ loc.name }}</a> /</div>
+    <h1>Edit Location</h1>
+  </div>
+</div>
+
+<div class="form-wrap">
+  <form method="post">
+    <div class="card">
+      <div class="field">
+        <label>Name <span class="req">*</span></label>
+        <input type="text" name="name" value="{{ loc.name }}" autofocus required>
+      </div>
+      <div class="field">
+        <label>Parent Location</label>
+        <select name="parent_id">
+          <option value="">— none (top level) —</option>
+          {% for l in all_locations %}
+          <option value="{{ l.id }}" {% if loc.parent_id == l.id %}selected{% endif %}>{{ l.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Notes</label>
+        <textarea name="notes" rows="3">{{ loc.notes or '' }}</textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn">Save Changes</button>
+      <a href="{{ url_for('location_detail', loc_id=loc.id) }}" class="btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ loc.name }} — House KB{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="breadcrumb">
+      <a href="{{ url_for('locations') }}">Locations</a>
+      {% if loc.parent_name %} / {{ loc.parent_name }}{% endif %} /
+    </div>
+    <h1>{{ loc.name }}</h1>
+    {% if loc.notes %}<div class="subtitle">{{ loc.notes }}</div>{% endif %}
+  </div>
+  <a href="{{ url_for('edit_location', loc_id=loc.id) }}" class="btn-secondary">Edit</a>
+  <a href="{{ url_for('delete_location', loc_id=loc.id) }}" class="btn-secondary">Delete</a>
+  <a href="{{ url_for('add_location') }}" class="btn">+ Sub-location</a>
+</div>
+
+{% if children %}
+<section>
+  <h2>Sub-locations</h2>
+  <div class="item-list">
+    {% for child in children %}
+    <a href="{{ url_for('location_detail', loc_id=child.id) }}" class="item-row">
+      <div class="item-name">{{ child.name }}</div>
+      {% if child.item_count > 0 %}
+      <span class="badge">{{ child.item_count }} item{% if child.item_count != 1 %}s{% endif %}</span>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section>
+  <div class="section-header">
+    <h2>Items here</h2>
+    <a href="{{ url_for('add_item') }}">+ Add item →</a>
+  </div>
+  {% if items %}
+  <div class="item-list">
+    {% for item in items %}
+    <a href="{{ url_for('item_detail', item_id=item.id) }}" class="item-row">
+      <div>
+        <div class="item-name">{{ item.name }}</div>
+        {% if item.manufacturer or item.purchased_date %}
+        <div class="item-meta">
+          {% if item.manufacturer %}{{ item.manufacturer }}{% endif %}
+          {% if item.purchased_date %} · {{ item.purchased_date }}{% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% if item.category %}<span class="badge">{{ item.category }}</span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty">No items in this location yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

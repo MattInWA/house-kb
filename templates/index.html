@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — House KB{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Dashboard</h1>
+</div>
+<div class="stat-row">
+  <div class="stat-card">
+    <div class="stat-num">{{ item_count }}</div>
+    <div class="stat-label">Items</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">{{ location_count }}</div>
+    <div class="stat-label">Locations</div>
+  </div>
+</div>
+<div class="two-col">
+  <section>
+    <div class="section-header">
+      <h2>Recently Added</h2>
+      <a href="{{ url_for('items') }}">All items →</a>
+    </div>
+    {% if recent_items %}
+    <div class="item-list">
+      {% for item in recent_items %}
+      <a href="{{ url_for('item_detail', item_id=item.id) }}" class="item-row">
+        <div>
+          <div class="item-name">{{ item.name }}</div>
+          {% if item.location_name %}<div class="item-meta">{{ item.location_name }}</div>{% endif %}
+        </div>
+        {% if item.category %}<span class="badge">{{ item.category }}</span>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty">No items yet. <a href="{{ url_for('add_item') }}">Add one →</a></p>
+    {% endif %}
+  </section>
+  <section>
+    <div class="section-header">
+      <h2>Recent Activity</h2>
+    </div>
+    {% if recent_events %}
+    <div class="item-list">
+      {% for ev in recent_events %}
+      <a href="{{ url_for('item_detail', item_id=ev.item_id) }}" class="item-row">
+        <div>
+          <div class="item-name">{{ ev.item_name }}</div>
+          <div class="item-meta">{{ ev.event_type }}{% if ev.event_date %} · {{ ev.event_date }}{% endif %}</div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty">No activity logged yet.</p>
+    {% endif %}
+  </section>
+</div>
+
+<section style="margin-top: 2rem;">
+  <div class="section-header">
+    <h2>Property</h2>
+    <a href="{{ url_for('locations') }}">All locations →</a>
+  </div>
+  <div class="loc-tree">
+    {% for l1 in tree %}
+    <details class="tree-node tree-l1">
+      <summary class="tree-summary">
+        <span class="tree-label"><a href="{{ url_for('location_detail', loc_id=l1.id) }}" onclick="event.stopPropagation()">{{ l1.name }}</a></span>
+        {% if l1.item_count %}<span class="badge">{{ l1.item_count }} item{% if l1.item_count != 1 %}s{% endif %}</span>{% endif %}
+      </summary>
+      {% if l1.children %}
+      <div class="tree-children">
+        {% for l2 in l1.children %}
+        {% if l2.children %}
+        <details class="tree-node tree-l2">
+          <summary class="tree-summary">
+            <span class="tree-label"><a href="{{ url_for('location_detail', loc_id=l2.id) }}" onclick="event.stopPropagation()">{{ l2.name }}</a></span>
+            {% if l2.item_count %}<span class="badge">{{ l2.item_count }} item{% if l2.item_count != 1 %}s{% endif %}</span>{% endif %}
+          </summary>
+          <div class="tree-children">
+            {% for l3 in l2.children %}
+            <div class="tree-node tree-l3 tree-leaf">
+              <span class="tree-label"><a href="{{ url_for('location_detail', loc_id=l3.id) }}">{{ l3.name }}</a></span>
+              {% if l3.item_count %}<span class="badge">{{ l3.item_count }} item{% if l3.item_count != 1 %}s{% endif %}</span>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </details>
+        {% else %}
+        <div class="tree-node tree-l2 tree-leaf">
+          <span class="tree-label"><a href="{{ url_for('location_detail', loc_id=l2.id) }}">{{ l2.name }}</a></span>
+          {% if l2.item_count %}<span class="badge">{{ l2.item_count }} item{% if l2.item_count != 1 %}s{% endif %}</span>{% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+    </details>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

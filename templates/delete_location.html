@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Delete Location — House KB{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="breadcrumb"><a href="{{ url_for('locations') }}">Locations</a> / <a href="{{ url_for('location_detail', loc_id=loc.id) }}">{{ loc.name }}</a> /</div>
+    <h1>Delete Location</h1>
+  </div>
+</div>
+
+{% if children or items %}
+<div class="card" style="border-left: 4px solid var(--color-error, #c0392b);">
+  <p><strong>Cannot delete "{{ loc.name }}"</strong> — it still has things attached. Reassign or delete these first:</p>
+  {% if children %}
+  <p><strong>Sub-locations ({{ children|length }}):</strong></p>
+  <ul>
+    {% for c in children %}
+    <li><a href="{{ url_for('location_detail', loc_id=c.id) }}">{{ c.name }}</a></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if items %}
+  <p><strong>Items ({{ items|length }}):</strong></p>
+  <ul>
+    {% for i in items %}
+    <li><a href="{{ url_for('item_detail', item_id=i.id) }}">{{ i.name }}</a></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+<div class="form-actions">
+  <a href="{{ url_for('location_detail', loc_id=loc.id) }}" class="btn">Back</a>
+</div>
+
+{% else %}
+<div class="card" style="border-left: 4px solid var(--color-error, #c0392b);">
+  <p>Permanently delete <strong>{{ loc.name }}</strong>? This cannot be undone.</p>
+</div>
+<div class="form-actions">
+  <form method="post" style="display:inline;">
+    <button type="submit" class="btn btn-danger">Yes, Delete</button>
+  </form>
+  <a href="{{ url_for('location_detail', loc_id=loc.id) }}" class="btn-secondary">Cancel</a>
+</div>
+{% endif %}
+{% endblock %}

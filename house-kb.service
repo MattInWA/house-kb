@@ -1,0 +1,15 @@
+[Unit]
+Description=House Knowledge Base
+After=network.target
+
+[Service]
+Type=simple
+User=YOURUSER
+WorkingDirectory=/path/to/house
+EnvironmentFile=/path/to/house/.env
+ExecStart=/path/to/house/venv/bin/python3 app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

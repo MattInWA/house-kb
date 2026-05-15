@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Locations — House KB{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Locations</h1>
+  <a href="{{ url_for('add_location') }}" class="btn btn-primary">+ Add Location</a>
+</div>
+{% if tree %}
+<div class="loc-tree">
+  {% for l1 in tree %}
+  <details class="tree-node tree-l1" open>
+    <summary class="tree-summary">
+      <span class="tree-label"><a href="{{ url_for('location_detail', loc_id=l1.id) }}" onclick="event.stopPropagation()">{{ l1.name }}</a></span>
+      {% if l1.item_count %}<span class="badge">{{ l1.item_count }} item{% if l1.item_count != 1 %}s{% endif %}</span>{% endif %}
+    </summary>
+    {% if l1.children %}
+    <div class="tree-children">
+      {% for l2 in l1.children %}
+      {% if l2.children %}
+      <details class="tree-node tree-l2">
+        <summary class="tree-summary">
+          <span class="tree-label"><a href="{{ url_for('location_detail', loc_id=l2.id) }}" onclick="event.stopPropagation()">{{ l2.name }}</a></span>
+          {% if l2.item_count %}<span class="badge">{{ l2.item_count }} item{% if l2.item_count != 1 %}s{% endif %}</span>{% endif %}
+        </summary>
+        <div class="tree-children">
+          {% for l3 in l2.children %}
+          <div class="tree-node tree-l3 tree-leaf">
+            <span class="tree-label"><a href="{{ url_for('location_detail', loc_id=l3.id) }}">{{ l3.name }}</a></span>
+            {% if l3.item_count %}<span class="badge">{{ l3.item_count }} item{% if l3.item_count != 1 %}s{% endif %}</span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </details>
+      {% else %}
+      <div class="tree-node tree-l2 tree-leaf">
+        <span class="tree-label"><a href="{{ url_for('location_detail', loc_id=l2.id) }}">{{ l2.name }}</a></span>
+        {% if l2.item_count %}<span class="badge">{{ l2.item_count }} item{% if l2.item_count != 1 %}s{% endif %}</span>{% endif %}
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </details>
+  {% endfor %}
+</div>
+{% else %}
+<p class="empty">No locations yet. <a href="{{ url_for('add_location') }}">Add one →</a></p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ item.name }} — House KB{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="breadcrumb"><a href="{{ url_for('item_detail', item_id=item.id) }}">{{ item.name }}</a> /</div>
+    <h1>Edit Item</h1>
+  </div>
+</div>
+
+<div class="form-wrap">
+  <form method="post">
+    <div class="card">
+      <div class="field">
+        <label>Name <span class="req">*</span></label>
+        <input type="text" name="name" required value="{{ item.name }}">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Category</label>
+          <input type="text" name="category" list="categories" value="{{ item.category or '' }}">
+          <datalist id="categories">
+            {% for cat in categories %}<option value="{{ cat.category }}">{% endfor %}
+          </datalist>
+        </div>
+        <div class="field">
+          <label>Location</label>
+          <select name="location_id">
+            <option value="">— none —</option>
+            {% for loc in all_locations %}
+            <option value="{{ loc.id }}" {% if item.location_id == loc.id %}selected{% endif %}>
+              {% if loc.parent_name %}{{ loc.parent_name }} › {% endif %}{{ loc.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Manufacturer</label>
+          <input type="text" name="manufacturer" value="{{ item.manufacturer or '' }}">
+        </div>
+        <div class="field">
+          <label>Model</label>
+          <input type="text" name="model" value="{{ item.model or '' }}">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Purchased</label>
+          <input type="text" name="purchased_date" value="{{ item.purchased_date or '' }}">
+        </div>
+        <div class="field">
+          <label>Installed</label>
+          <input type="text" name="installed_date" value="{{ item.installed_date or '' }}">
+        </div>
+      </div>
+      <div class="field">
+        <label>Notes</label>
+        <textarea name="notes" rows="3">{{ item.notes or '' }}</textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+      <a href="{{ url_for('item_detail', item_id=item.id) }}" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

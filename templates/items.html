@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Items — House KB{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Items</h1>
+  <a href="{{ url_for('add_item') }}" class="btn btn-primary">+ Add Item</a>
+</div>
+
+<div class="toolbar">
+  <form method="get" class="search-form">
+    <input type="search" name="q" value="{{ search }}" placeholder="Search items…" class="search-input">
+    {% if active_category %}<input type="hidden" name="category" value="{{ active_category }}">{% endif %}
+    <button type="submit" class="btn">Search</button>
+    {% if search or active_category %}<a href="{{ url_for('items') }}" class="btn btn-ghost">Clear</a>{% endif %}
+  </form>
+
+  <div class="filter-chips">
+    <a href="{{ url_for('items', q=search) }}" class="chip {% if not active_category %}chip-active{% endif %}">All</a>
+    {% for cat in categories %}
+    <a href="{{ url_for('items', category=cat.category, q=search) }}"
+       class="chip {% if active_category == cat.category %}chip-active{% endif %}">{{ cat.category }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if items %}
+<div class="item-list">
+  {% for item in items %}
+  <a href="{{ url_for('item_detail', item_id=item.id) }}" class="item-row">
+    <div>
+      <div class="item-name">{{ item.name }}</div>
+      <div class="item-meta">
+        {% if item.location_name %}{{ item.location_name }}{% endif %}
+        {% if item.manufacturer %} · {{ item.manufacturer }}{% endif %}
+        {% if item.purchased_date %} · {{ item.purchased_date }}{% endif %}
+      </div>
+    </div>
+    {% if item.category %}<span class="badge">{{ item.category }}</span>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="empty">No items found.{% if not search and not active_category %} <a href="{{ url_for('add_item') }}">Add the first one →</a>{% endif %}</p>
+{% endif %}
+{% endblock %}

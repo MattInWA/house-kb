@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}House KB{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  {% if current_user %}
+  <nav class="nav">
+    <a href="{{ url_for('index') }}" class="nav-brand">⌂ House KB</a>
+    <div class="nav-links">
+      <a href="{{ url_for('items') }}">Items</a>
+      <a href="{{ url_for('locations') }}">Locations</a>
+      <a href="{{ url_for('add_item') }}" class="nav-add">+ Add Item</a>
+      {% if current_user.is_admin %}<a href="{{ url_for('admin') }}">Admin</a>{% endif %}
+      <span class="nav-user">{{ current_user.display_name or current_user.username }} · <a href="{{ url_for('logout') }}">logout</a></span>
+    </div>
+  </nav>
+  {% endif %}
+
+  <main class="main">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">
+          {% if category == 'apikey' %}
+            <strong>API Key generated — copy it now, it won't be shown again:</strong><br>
+            <code class="apikey-display">{{ message.split('now: ')[-1] }}</code>
+          {% else %}{{ message }}{% endif %}
+        </div>
+      {% endfor %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

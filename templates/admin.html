@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Admin — House KB{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Admin</h1>
+</div>
+
+<div class="two-col">
+  <section class="card">
+    <h2>Users</h2>
+    <div class="item-list">
+      {% for user in users %}
+      <div class="item-row no-link">
+        <div>
+          <div class="item-name">{{ user.display_name or user.username }}</div>
+          <div class="item-meta">{{ user.username }}{% if user.is_admin %} · admin{% endif %}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <h3 style="margin-top:1.5rem">Add user</h3>
+    <form method="post" action="{{ url_for('add_user') }}">
+      <div class="field">
+        <label>Username</label>
+        <input type="text" name="username" required>
+      </div>
+      <div class="field">
+        <label>Display name</label>
+        <input type="text" name="display_name" placeholder="e.g. Shelley">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" name="password" required>
+      </div>
+      <div class="field">
+        <label><input type="checkbox" name="is_admin"> Admin</label>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Create User</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>API Keys</h2>
+    {% if api_keys %}
+    <div class="item-list">
+      {% for key in api_keys %}
+      <div class="item-row no-link">
+        <div>
+          <div class="item-name">{{ key.label }}</div>
+          <div class="item-meta">
+            Created {{ key.created_at[:10] }}
+            {% if key.last_used %} · Last used {{ key.last_used[:10] }}{% endif %}
+          </div>
+        </div>
+        <form method="post" action="{{ url_for('revoke_api_key', key_id=key.id) }}">
+          <button type="submit" class="btn btn-ghost btn-sm">Revoke</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty">No API keys yet.</p>
+    {% endif %}
+
+    <h3 style="margin-top:1.5rem">Generate key</h3>
+    <form method="post" action="{{ url_for('generate_api_key') }}">
+      <div class="field">
+        <label>Label</label>
+        <input type="text" name="label" required placeholder="e.g. claude-agent">
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Generate</button>
+    </form>
+    <p class="muted" style="font-size:0.8rem;margin-top:0.5rem">Keys are shown once and never stored in plaintext. Store immediately in Proton Pass.</p>
+  </section>
+</div>
+{% endblock %}

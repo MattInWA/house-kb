@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Add Item — House KB{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="breadcrumb"><a href="{{ url_for('items') }}">Items</a> /</div>
+    <h1>Add Item</h1>
+  </div>
+</div>
+
+<div class="form-wrap">
+  <form method="post">
+    <div class="card">
+      <h2>Core Details</h2>
+      <div class="field">
+        <label>Name <span class="req">*</span></label>
+        <input type="text" name="name" autofocus required placeholder="e.g. Driveway Hose Bib">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Category</label>
+          <input type="text" name="category" list="categories" placeholder="e.g. plumbing">
+          <datalist id="categories">
+            {% for cat in categories %}<option value="{{ cat.category }}">{% endfor %}
+            <option value="plumbing"><option value="electrical"><option value="structural">
+            <option value="appliance"><option value="hvac"><option value="landscaping">
+            <option value="exterior"><option value="fixture"><option value="tool">
+            <option value="vehicle">
+          </datalist>
+        </div>
+        <div class="field">
+          <label>Location</label>
+          <select name="location_id">
+            <option value="">— none —</option>
+            {% for loc in all_locations %}
+            <option value="{{ loc.id }}">{% if loc.parent_name %}{{ loc.parent_name }} › {% endif %}{{ loc.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Manufacturer</label>
+          <input type="text" name="manufacturer" placeholder="e.g. Woodford">
+        </div>
+        <div class="field">
+          <label>Model</label>
+          <input type="text" name="model" placeholder="e.g. Model 19">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Purchased</label>
+          <input type="text" name="purchased_date" placeholder="2026-04">
+        </div>
+        <div class="field">
+          <label>Installed</label>
+          <input type="text" name="installed_date" placeholder="2026-04">
+        </div>
+      </div>
+      <div class="field">
+        <label>Notes</label>
+        <textarea name="notes" rows="3" placeholder="Any additional context…"></textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Specifications <span class="muted" style="font-size:0.85rem;font-weight:normal">(optional — add any specs)</span></h2>
+      <div id="attrs">
+        <div class="attr-pair">
+          <input type="text" name="attr_key" placeholder="e.g. thread_size" class="input-sm">
+          <input type="text" name="attr_value" placeholder="e.g. 3/4&quot;" class="input-sm">
+        </div>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" id="add-attr">+ Add spec</button>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" name="action" value="save" class="btn btn-primary">Save Item</button>
+      <button type="submit" name="action" value="another" class="btn">Save & Add Another</button>
+      <a href="{{ url_for('items') }}" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+const CATEGORY_SUGGESTIONS = {
+  vehicle:    ['year_manufactured', 'serial_number', 'engine_hours', 'engine_hours_date'],
+  appliance:  ['year_manufactured', 'serial_number', 'warranty_expires'],
+  hvac:       ['year_manufactured', 'serial_number', 'warranty_expires', 'filter_size', 'refrigerant_type'],
+  plumbing:   ['thread_size', 'pipe_material', 'flow_rate'],
+  electrical: ['voltage', 'amperage', 'circuit_breaker'],
+  tool:       ['year_manufactured', 'serial_number'],
+  fixture:    ['finish', 'mounting_type'],
+};
+
+function addAttrRow(key, value) {
+  const div = document.createElement('div');
+  div.className = 'attr-pair';
+  div.innerHTML = '<input type="text" name="attr_key" placeholder="Spec name" class="input-sm"><input type="text" name="attr_value" placeholder="Value" class="input-sm">';
+  div.querySelector('[name="attr_key"]').value = key || '';
+  div.querySelector('[name="attr_value"]').value = value || '';
+  document.getElementById('attrs').appendChild(div);
+}
+
+document.getElementById('add-attr').addEventListener('click', function() {
+  addAttrRow('', '');
+});
+
+document.querySelector('[name="category"]').addEventListener('change', function() {
+  const suggestions = CATEGORY_SUGGESTIONS[this.value.toLowerCase()];
+  if (!suggestions) return;
+  // Only pre-populate if all current rows are empty
+  const existingKeys = [...document.querySelectorAll('[name="attr_key"]')].map(i => i.value.trim());
+  const allEmpty = existingKeys.every(k => k === '');
+  if (!allEmpty) return;
+  // Clear the single blank starter row, add suggested rows
+  document.getElementById('attrs').innerHTML = '';
+  suggestions.forEach(k => addAttrRow(k, ''));
+});
+</script>
+{% endblock %}
