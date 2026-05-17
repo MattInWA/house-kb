@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}Stats — House KB{% endblock %}
+
+{% block content %}
+<style>
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem; }
+  @media (max-width: 700px) { .stats-grid { grid-template-columns: 1fr; } }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow); }
+  .chart-wrap { position: relative; height: 220px; }
+  .chart-wrap-tall { position: relative; height: 280px; }
+  .chart-empty { color: var(--muted); font-size: 0.9rem; font-style: italic; padding: 2.5rem 0; text-align: center; }
+  .top-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .top-table th { text-align: left; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); padding: 0 0.5rem 0.75rem; font-weight: 500; }
+  .top-table td { padding: 0.55rem 0.5rem; border-top: 1px solid var(--border); vertical-align: middle; }
+  .score-bar { display: inline-block; height: 6px; background: var(--accent); border-radius: 3px; vertical-align: middle; opacity: 0.75; }
+  .score-val { margin-left: 6px; color: var(--muted); font-size: 0.82rem; }
+</style>
+
+<div class="page-header">
+  <div>
+    <h1>Stats</h1>
+    <div class="subtitle">A look at what's in the database.</div>
+  </div>
+</div>
+
+<div class="stat-row">
+  <div class="stat-card">
+    <div class="stat-num">{{ counts.item_count }}</div>
+    <div class="stat-label">Items</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">{{ counts.loc_count }}</div>
+    <div class="stat-label">Locations</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">{{ counts.event_count }}</div>
+    <div class="stat-label">Events</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">{{ counts.attr_count }}</div>
+    <div class="stat-label">Attributes</div>
+  </div>
+  {% if total_spend > 0 %}
+  <div class="stat-card">
+    <div class="stat-num">${{ "%.0f"|format(total_spend) }}</div>
+    <div class="stat-label">Logged Spend</div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="stats-grid">
+  <div class="chart-card">
+    <h2>By Category</h2>
+    {% if categories.labels %}
+    <div class="chart-wrap-tall"><canvas id="chart-categories"></canvas></div>
+    {% else %}
+    <div class="chart-empty">No category data yet.</div>
+    {% endif %}
+  </div>
+  <div class="chart-card">
+    <h2>By Location</h2>
+    {% if loc_items.labels %}
+    <div class="chart-wrap-tall"><canvas id="chart-locations"></canvas></div>
+    {% else %}
+    <div class="chart-empty">No location data yet.</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="chart-card">
+    <h2>Event Types</h2>
+    {% if event_types.labels %}
+    <div class="chart-wrap"><canvas id="chart-events"></canvas></div>
+    {% else %}
+    <div class="chart-empty">No events logged yet.</div>
+    {% endif %}
+  </div>
+  <div class="chart-card">
+    <h2>Acquisition Timeline</h2>
+    {% if acquisitions.labels %}
+    <div class="chart-wrap"><canvas id="chart-acquisitions"></canvas></div>
+    {% else %}
+    <div class="chart-empty">No purchase dates recorded yet.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if manufacturers.labels %}
+<div class="chart-card" style="margin-bottom: 1.25rem;">
+  <h2>Brand Breakdown</h2>
+  <div class="chart-wrap"><canvas id="chart-brands"></canvas></div>
+</div>
+{% endif %}
+
+{% if top_items %}
+<div class="card">
+  <h2>Most Documented Items</h2>
+  <table class="top-table">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Events</th>
+        <th>Attrs</th>
+        <th>Links</th>
+        <th>Score</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set max_score = top_items[0].score %}
+      {% for item in top_items %}
+      {% if item.score > 0 %}
+      <tr>
+        <td><a href="{{ url_for('item_detail', item_id=item.id) }}">{{ item.name }}</a></td>
+        <td>{{ item.event_cnt }}</td>
+        <td>{{ item.attr_cnt }}</td>
+        <td>{{ item.rel_cnt }}</td>
+        <td>
+          <span class="score-bar" style="width: {{ [4, (item.score / max_score * 80)|int]|max }}px"></span>
+          <span class="score-val">{{ item.score }}</span>
+        </td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+Chart.defaults.font.family = "'DM Sans', sans-serif";
+Chart.defaults.color = '#8a8078';
+
+const TERRA = '#b05c3a';
+const PALETTE = ['#b05c3a','#7c6a5a','#c47a4a','#d4a574','#9b7b5c','#e0c9a6','#6b5a4e'];
+
+function hbar(id, labels, values) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  new Chart(el, {
+    type: 'bar',
+    data: { labels, datasets: [{ data: values, backgroundColor: TERRA, borderRadius: 3, borderSkipped: false }] },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#e4dfd8' }, ticks: { precision: 0, stepSize: 1 } },
+        y: { grid: { display: false } }
+      },
+      maintainAspectRatio: false,
+    }
+  });
+}
+
+function vbar(id, labels, values) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  new Chart(el, {
+    type: 'bar',
+    data: { labels, datasets: [{ data: values, backgroundColor: TERRA, borderRadius: 4 }] },
+    options: {
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + ctx.raw + ' item' + (ctx.raw !== 1 ? 's' : '') } } },
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: '#e4dfd8' }, ticks: { precision: 0, stepSize: 1 } }
+      },
+      maintainAspectRatio: false,
+    }
+  });
+}
+
+function donut(id, labels, values) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  new Chart(el, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: PALETTE, borderWidth: 2, borderColor: '#ffffff' }] },
+    options: {
+      plugins: { legend: { position: 'bottom', labels: { padding: 14, boxWidth: 12 } } },
+      maintainAspectRatio: false,
+    }
+  });
+}
+
+hbar('chart-categories',   {{ categories.labels|tojson }},    {{ categories.data|tojson }});
+hbar('chart-locations',    {{ loc_items.labels|tojson }},     {{ loc_items.data|tojson }});
+donut('chart-events',      {{ event_types.labels|tojson }},   {{ event_types.data|tojson }});
+vbar('chart-acquisitions', {{ acquisitions.labels|tojson }},  {{ acquisitions.data|tojson }});
+hbar('chart-brands',       {{ manufacturers.labels|tojson }}, {{ manufacturers.data|tojson }});
+</script>
+{% endblock %}

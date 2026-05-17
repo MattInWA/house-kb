@@ -1154,6 +1154,98 @@ def delete_attachment(att_id):
 
 
 # ---------------------------------------------------------------------------
+# Stats
+# ---------------------------------------------------------------------------
+
+@app.route("/stats")
+@login_required
+def stats():
+    counts = query("""
+        SELECT
+          (SELECT count(*) FROM items)         AS item_count,
+          (SELECT count(*) FROM locations)     AS loc_count,
+          (SELECT count(*) FROM events)        AS event_count,
+          (SELECT count(*) FROM attributes)    AS attr_count,
+          (SELECT count(*) FROM relationships) AS rel_count
+    """, one=True)
+
+    categories = query("""
+        SELECT coalesce(nullif(category,''), 'uncategorized') AS label, count(*) AS cnt
+        FROM items GROUP BY category ORDER BY cnt DESC
+    """)
+
+    loc_items = query("""
+        WITH RECURSIVE anc AS (
+          SELECT id, name, parent_id, id AS root_id, name AS root_name
+          FROM locations WHERE parent_id IS NULL
+          UNION ALL
+          SELECT l.id, l.name, l.parent_id, a.root_id, a.root_name
+          FROM locations l JOIN anc a ON l.parent_id = a.id
+        )
+        SELECT a.root_name AS label, count(i.id) AS cnt
+        FROM anc a
+        LEFT JOIN items i ON i.location_id = a.id
+        GROUP BY a.root_id, a.root_name
+        HAVING cnt > 0
+        ORDER BY cnt DESC
+    """)
+
+    event_types = query("""
+        SELECT event_type AS label, count(*) AS cnt
+        FROM events GROUP BY event_type ORDER BY cnt DESC
+    """)
+
+    acquisitions = query("""
+        SELECT substr(purchased_date, 1, 4) AS label, count(*) AS cnt
+        FROM items
+        WHERE purchased_date IS NOT NULL AND purchased_date != ''
+          AND length(purchased_date) >= 4
+        GROUP BY label ORDER BY label
+    """)
+
+    manufacturers = query("""
+        SELECT manufacturer AS label, count(*) AS cnt
+        FROM items
+        WHERE manufacturer IS NOT NULL AND manufacturer != ''
+        GROUP BY manufacturer ORDER BY cnt DESC LIMIT 10
+    """)
+
+    top_items = query("""
+        SELECT i.id, i.name,
+          count(DISTINCT e.id)  AS event_cnt,
+          count(DISTINCT a.id)  AS attr_cnt,
+          count(DISTINCT r.id)  AS rel_cnt,
+          count(DISTINCT e.id) + count(DISTINCT a.id) + count(DISTINCT r.id) AS score
+        FROM items i
+        LEFT JOIN events e ON e.item_id = i.id
+        LEFT JOIN attributes a ON a.item_id = i.id
+        LEFT JOIN relationships r ON r.from_item = i.id OR r.to_item = i.id
+        GROUP BY i.id, i.name
+        ORDER BY score DESC
+        LIMIT 10
+    """)
+
+    spend = query("""
+        SELECT coalesce(sum(cost), 0) AS total FROM events
+        WHERE cost IS NOT NULL AND cost > 0
+    """, one=True)
+
+    def to_chart(rows):
+        return {"labels": [r["label"] for r in rows], "data": [r["cnt"] for r in rows]}
+
+    return render_template("stats.html",
+        counts=counts,
+        categories=to_chart(categories),
+        loc_items=to_chart(loc_items),
+        event_types=to_chart(event_types),
+        acquisitions=to_chart(acquisitions),
+        manufacturers=to_chart(manufacturers),
+        top_items=top_items,
+        total_spend=spend["total"],
+    )
+
+
+# ---------------------------------------------------------------------------
 # Run
 # ---------------------------------------------------------------------------
 
