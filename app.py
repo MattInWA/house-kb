@@ -13,7 +13,6 @@ import uuid
 import mimetypes
 from datetime import datetime
 from io import BytesIO
-from urllib.parse import urlparse
 from flask import (
     Flask, g, request, session, redirect, url_for,
     render_template, jsonify, flash, abort, send_from_directory, send_file
@@ -87,20 +86,15 @@ def hash_password(password: str) -> str:
 
 def verify_password(stored: str, password: str) -> bool:
     try:
-        if stored.startswith("pbkdf2:"):
-            _, salt, h = stored.split(":", 2)
-            dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), _PBKDF2_ITERS)
-            return hmac.compare_digest(dk.hex(), h)
-        # Legacy SHA-256 format: "salt:hexhash" — accepted but will be upgraded on login
-        salt, h = stored.split(":", 1)
-        candidate = hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
-        return hmac.compare_digest(candidate, h)
+        _, salt, h = stored.split(":", 2)
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), _PBKDF2_ITERS)
+        return hmac.compare_digest(dk.hex(), h)
     except Exception:
         return False
 
 
 def hash_api_key(key: str) -> str:
-    return hashlib.sha256(key.encode()).hexdigest()
+    return hashlib.sha3_256(key.encode()).hexdigest()
 
 
 def current_user():
@@ -114,7 +108,8 @@ def login_required(f):
     @functools.wraps(f)
     def decorated(*args, **kwargs):
         if not session.get("user_id"):
-            return redirect(url_for("login", next=request.path))
+            session["_login_next"] = request.path
+            return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated
 
@@ -168,15 +163,9 @@ def login():
         password = request.form.get("password", "")
         user = query("SELECT * FROM users WHERE username = ?", (username,), one=True)
         if user and verify_password(user["password_hash"], password):
-            if not user["password_hash"].startswith("pbkdf2:"):
-                execute("UPDATE users SET password_hash = ? WHERE id = ?",
-                        (hash_password(password), user["id"]))
+            next_url = session.get("_login_next") or url_for("index")
             session.clear()
             session["user_id"] = user["id"]
-            next_url = request.args.get("next", "")
-            parsed = urlparse(next_url)
-            if not next_url or parsed.netloc or parsed.scheme:
-                next_url = url_for("index")
             return redirect(next_url)
         flash("Invalid username or password.", "error")
     return render_template("login.html")
