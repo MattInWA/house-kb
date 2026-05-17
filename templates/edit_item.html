@@ -13,7 +13,8 @@
     <div class="card">
       <div class="field">
         <label>Name <span class="req">*</span></label>
-        <input type="text" name="name" required value="{{ item.name }}">
+        <input type="text" name="name" required value="{{ item.name }}"
+               data-check="item-name" data-exclude-id="{{ item.id }}">
       </div>
       <div class="field-row">
         <div class="field">
@@ -25,7 +26,7 @@
         </div>
         <div class="field">
           <label>Location</label>
-          <select name="location_id">
+          <select name="location_id" data-check-secondary="location_id">
             <option value="">— none —</option>
             {% for loc in all_locations %}
             <option value="{{ loc.id }}" {% if item.location_id == loc.id %}selected{% endif %}>

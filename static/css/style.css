@@ -352,3 +352,254 @@ details[open] > .tree-summary::before { transform: rotate(90deg); }
 .att-meta { display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; }
 .att-upload { display: flex; gap: 0.5rem; align-items: center; margin-top: 1rem; flex-wrap: wrap; }
 .att-upload input[type="file"] { font-size: 0.82rem; }
+
+/* ── Nav search (global) ── */
+.nav-search { position: relative; }
+.nav-search-input {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: var(--radius);
+  color: var(--nav-text);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  padding: 0.28rem 0.7rem;
+  width: 160px;
+  transition: width 0.2s ease, background 0.15s;
+}
+.nav-search-input:focus {
+  width: 220px;
+  background: rgba(255,255,255,0.13);
+  outline: none;
+  border-color: rgba(255,255,255,0.28);
+}
+.nav-search-input::placeholder { color: rgba(200,192,182,0.5); }
+
+.nav-search-results {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), 0 8px 28px rgba(42,37,32,0.13);
+  z-index: 300;
+  overflow: hidden;
+}
+.search-result {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+  transition: background 0.1s;
+  cursor: pointer;
+}
+.search-result:last-child { border-bottom: none; }
+.search-result:hover, .search-result.active { background: var(--accent-lt); text-decoration: none; }
+.search-result-name { font-size: 0.88rem; font-weight: 500; }
+.search-result-sub  { font-size: 0.76rem; color: var(--muted); }
+.search-result-type {
+  font-size: 0.67rem; font-family: var(--font-mono);
+  padding: 0.15em 0.45em; border-radius: 3px;
+  border: 1px solid var(--border); color: var(--muted);
+  background: var(--bg); white-space: nowrap; flex-shrink: 0;
+}
+.search-result-type.type-item { background: var(--accent-lt); color: var(--accent); border-color: transparent; }
+.search-result-empty { padding: 0.65rem 0.85rem; color: var(--muted); font-size: 0.85rem; font-style: italic; }
+
+/* ── Click-to-edit core item fields ── */
+.editable-field {
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin: -1px -4px;
+  display: inline-block;
+  min-width: 2em;
+  min-height: 1.2em;
+  transition: background 0.12s;
+  white-space: pre-wrap;
+}
+.editable-field:hover { background: var(--accent-lt); }
+.editable-field:empty::before {
+  content: 'click to add…';
+  color: var(--muted);
+  opacity: 0.55;
+  font-style: italic;
+  font-size: 0.85rem;
+  font-weight: normal;
+}
+.editable-notes { display: block; min-height: 1.4em; }
+.editable-textarea {
+  width: 100% !important;
+  min-height: 80px;
+  font-size: 0.9rem;
+  padding: 0.4rem 0.5rem;
+  resize: vertical;
+}
+
+/* ── Inline validation hints (Phase 1) ── */
+.field-hint {
+  font-size: 0.8rem;
+  margin-top: 0.3rem;
+  min-height: 1.1em;
+  transition: color 0.15s;
+}
+.hint-ok   { color: var(--success); }
+.hint-warn { color: #7a4f00; }
+.hint-warn a { color: #7a4f00; text-decoration: underline; }
+.hint-checking { color: var(--muted); font-style: italic; }
+
+/* ── Live search loading state (Phase 2) ── */
+#item-list-container { transition: opacity 0.15s; }
+#item-list-container.loading { opacity: 0.5; }
+
+/* ── Inline attr editing (Phase 3) ── */
+.attr-value {
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 1px 3px;
+  margin: -1px -3px;
+  transition: background 0.15s;
+  flex: 1;
+}
+.attr-value:hover { background: var(--accent-lt); }
+.attr-value[title]::after {
+  content: ' ✎';
+  font-size: 0.7em;
+  opacity: 0;
+  transition: opacity 0.15s;
+  color: var(--muted);
+}
+.attr-value:hover[title]::after { opacity: 1; }
+.attr-inline-input {
+  flex: 1;
+  font-size: 0.88rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 0 0 3px var(--accent-lt);
+  min-width: 80px;
+}
+
+/* ── Quick-add panel (Phase 4) ── */
+.qa-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(42, 37, 32, 0.35);
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.qa-overlay.open { opacity: 1; pointer-events: auto; }
+
+.qa-panel {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 420px;
+  max-width: 95vw;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -6px 0 32px rgba(42, 37, 32, 0.14);
+  z-index: 201;
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto;
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.qa-panel.open { transform: translateX(0); }
+
+.qa-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+.qa-header h2 { margin-bottom: 0; }
+.qa-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 0 0.25rem;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.qa-close:hover { color: var(--text); }
+
+.qa-actions { display: flex; gap: 0.75rem; margin-top: 0.25rem; }
+.qa-feedback {
+  font-size: 0.88rem;
+  margin-top: 1rem;
+  min-height: 1.4em;
+  line-height: 1.4;
+}
+.qa-feedback.ok { color: var(--success); }
+.qa-feedback.err { color: var(--error); }
+.qa-feedback a { color: var(--success); text-decoration: underline; }
+
+/* ── QR code ── */
+.qr-section {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.qr-img {
+  width: 72px;
+  height: 72px;
+  image-rendering: pixelated;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.qr-meta { display: flex; flex-direction: column; gap: 0.2rem; }
+.qr-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.qr-dl { font-size: 0.8rem; }
+
+/* ── Relationship graph ── */
+.rel-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+.rel-edge        { stroke: var(--border); stroke-width: 1.5; }
+.rel-edge-label  {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  fill: var(--muted);
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+.rel-node circle {
+  fill: var(--surface);
+  stroke: var(--border);
+  stroke-width: 1.5;
+  transition: stroke 0.15s, fill 0.15s;
+}
+.rel-node:hover circle { stroke: var(--accent); fill: var(--accent-lt); }
+.rel-self circle { fill: var(--accent-lt); stroke: var(--accent); stroke-width: 2; }
+.rel-node-label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  fill: var(--text);
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}

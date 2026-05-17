@@ -13,11 +13,11 @@
     <div class="card">
       <div class="field">
         <label>Name <span class="req">*</span></label>
-        <input type="text" name="name" autofocus required placeholder="e.g. Driveway">
+        <input type="text" name="name" autofocus required placeholder="e.g. Driveway" data-check="location-name">
       </div>
       <div class="field">
         <label>Parent location</label>
-        <select name="parent_id">
+        <select name="parent_id" data-check-secondary="parent_id">
           <option value="">— none (top level) —</option>
           {% for loc in all_locations %}
           <option value="{{ loc.id }}" {% if selected_parent and selected_parent|int == loc.id %}selected{% endif %}>{{ loc.name }}</option>

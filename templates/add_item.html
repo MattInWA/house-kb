@@ -9,17 +9,26 @@
 </div>
 
 <div class="form-wrap">
+  {% if clone_data %}
+  <div class="flash flash-success" style="margin-bottom:1.25rem">
+    Cloning from <strong>{{ clone_data.source_name }}</strong> — give it a new name and adjust as needed.
+  </div>
+  {% endif %}
   <form method="post">
     <div class="card">
       <h2>Core Details</h2>
       <div class="field">
         <label>Name <span class="req">*</span></label>
-        <input type="text" name="name" autofocus required placeholder="e.g. Driveway Hose Bib">
+        <input type="text" name="name" autofocus required spellcheck="true" placeholder="e.g. Driveway Hose Bib"
+               value="{{ form_data.name if form_data else '' }}"
+               {% if form_data %}style="border-color:red;outline-color:red"{% endif %}
+               data-check="item-name">
       </div>
       <div class="field-row">
         <div class="field">
           <label>Category</label>
-          <input type="text" name="category" list="categories" placeholder="e.g. plumbing">
+          <input type="text" name="category" list="categories" placeholder="e.g. plumbing"
+                 value="{{ clone_data.category if clone_data else '' }}">
           <datalist id="categories">
             {% for cat in categories %}<option value="{{ cat.category }}">{% endfor %}
             <option value="plumbing"><option value="electrical"><option value="structural">
@@ -30,10 +39,13 @@
         </div>
         <div class="field">
           <label>Location</label>
-          <select name="location_id">
+          <select name="location_id" data-check-secondary="location_id">
             <option value="">— none —</option>
             {% for loc in all_locations %}
-            <option value="{{ loc.id }}">{% if loc.parent_name %}{{ loc.parent_name }} › {% endif %}{{ loc.name }}</option>
+            <option value="{{ loc.id }}"
+              {% if clone_data and clone_data.location_id == loc.id|string %}selected{% endif %}>
+              {% if loc.parent_name %}{{ loc.parent_name }} › {% endif %}{{ loc.name }}
+            </option>
             {% endfor %}
           </select>
         </div>
@@ -41,11 +53,13 @@
       <div class="field-row">
         <div class="field">
           <label>Manufacturer</label>
-          <input type="text" name="manufacturer" placeholder="e.g. Woodford">
+          <input type="text" name="manufacturer" placeholder="e.g. Woodford"
+               value="{{ clone_data.manufacturer if clone_data else '' }}">
         </div>
         <div class="field">
           <label>Model</label>
-          <input type="text" name="model" placeholder="e.g. Model 19">
+          <input type="text" name="model" placeholder="e.g. Model 19"
+                 value="{{ clone_data.model if clone_data else '' }}">
         </div>
       </div>
       <div class="field-row">
@@ -60,17 +74,26 @@
       </div>
       <div class="field">
         <label>Notes</label>
-        <textarea name="notes" rows="3" placeholder="Any additional context…"></textarea>
+        <textarea name="notes" rows="3" placeholder="Any additional context…">{{ clone_data.notes if clone_data else '' }}</textarea>
       </div>
     </div>
 
     <div class="card">
       <h2>Specifications <span class="muted" style="font-size:0.85rem;font-weight:normal">(optional — add any specs)</span></h2>
       <div id="attrs">
+        {% if clone_data and clone_data.attrs %}
+          {% for attr in clone_data.attrs %}
+          <div class="attr-pair">
+            <input type="text" name="attr_key" class="input-sm" value="{{ attr.key }}">
+            <input type="text" name="attr_value" class="input-sm" value="{{ attr.value }}">
+          </div>
+          {% endfor %}
+        {% else %}
         <div class="attr-pair">
           <input type="text" name="attr_key" placeholder="e.g. thread_size" class="input-sm">
           <input type="text" name="attr_value" placeholder="e.g. 3/4&quot;" class="input-sm">
         </div>
+        {% endif %}
       </div>
       <button type="button" class="btn btn-ghost btn-sm" id="add-attr">+ Add spec</button>
     </div>
@@ -107,6 +130,7 @@ document.getElementById('add-attr').addEventListener('click', function() {
   addAttrRow('', '');
 });
 
+{% if not clone_data %}
 document.querySelector('[name="category"]').addEventListener('change', function() {
   const suggestions = CATEGORY_SUGGESTIONS[this.value.toLowerCase()];
   if (!suggestions) return;
@@ -118,5 +142,6 @@ document.querySelector('[name="category"]').addEventListener('change', function(
   document.getElementById('attrs').innerHTML = '';
   suggestions.forEach(k => addAttrRow(k, ''));
 });
+{% endif %}
 </script>
 {% endblock %}

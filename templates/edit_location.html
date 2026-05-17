@@ -13,11 +13,12 @@
     <div class="card">
       <div class="field">
         <label>Name <span class="req">*</span></label>
-        <input type="text" name="name" value="{{ loc.name }}" autofocus required>
+        <input type="text" name="name" value="{{ loc.name }}" autofocus required
+               data-check="location-name" data-exclude-id="{{ loc.id }}">
       </div>
       <div class="field">
         <label>Parent Location</label>
-        <select name="parent_id">
+        <select name="parent_id" data-check-secondary="parent_id">
           <option value="">— none (top level) —</option>
           {% for l in all_locations %}
           <option value="{{ l.id }}" {% if loc.parent_id == l.id %}selected{% endif %}>{{ l.name }}</option>

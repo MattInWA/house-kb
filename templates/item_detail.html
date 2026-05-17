@@ -7,36 +7,52 @@
     <h1>{{ item.name }}</h1>
     {% if item.location_name %}<div class="subtitle">{{ item.location_name }}</div>{% endif %}
   </div>
-  <a href="{{ url_for('edit_item', item_id=item.id) }}" class="btn">Edit</a>
+  <div style="display:flex;gap:0.5rem">
+    <a href="{{ url_for('add_item', clone_from=item.id) }}" class="btn">Duplicate</a>
+    <a href="{{ url_for('edit_item', item_id=item.id) }}" class="btn">Edit</a>
+  </div>
 </div>
 
 <div class="two-col">
   <!-- Left column: core fields + attributes + relationships -->
   <div>
-    <section class="card">
+    <section class="card" id="item-fields" data-item-id="{{ item.id }}">
       <h2>Details</h2>
       <dl class="dl">
-        {% if item.category %}<dt>Category</dt><dd><span class="badge">{{ item.category }}</span></dd>{% endif %}
-        {% if item.manufacturer %}<dt>Manufacturer</dt><dd>{{ item.manufacturer }}</dd>{% endif %}
-        {% if item.model %}<dt>Model</dt><dd>{{ item.model }}</dd>{% endif %}
-        {% if item.purchased_date %}<dt>Purchased</dt><dd>{{ item.purchased_date }}</dd>{% endif %}
-        {% if item.installed_date %}<dt>Installed</dt><dd>{{ item.installed_date }}</dd>{% endif %}
-        {% if item.notes %}<dt>Notes</dt><dd class="notes">{{ item.notes }}</dd>{% endif %}
-        <dt>Added</dt><dd class="muted">{{ item.created_at[:10] }}{% if item.created_by_name %} by {{ item.created_by_name }}{% endif %}</dd>
+        <dt>Category</dt>
+        <dd><span class="editable-field" data-field="category" title="Click to edit">{{ item.category or '' }}</span></dd>
+        <dt>Manufacturer</dt>
+        <dd><span class="editable-field" data-field="manufacturer" title="Click to edit">{{ item.manufacturer or '' }}</span></dd>
+        <dt>Model</dt>
+        <dd><span class="editable-field" data-field="model" title="Click to edit">{{ item.model or '' }}</span></dd>
+        <dt>Purchased</dt>
+        <dd><span class="editable-field" data-field="purchased_date" title="Click to edit">{{ item.purchased_date or '' }}</span></dd>
+        <dt>Installed</dt>
+        <dd><span class="editable-field" data-field="installed_date" title="Click to edit">{{ item.installed_date or '' }}</span></dd>
+        <dt>Notes</dt>
+        <dd><span class="editable-field editable-notes" data-field="notes" title="Click to edit">{{ item.notes or '' }}</span></dd>
+        <dt>Added</dt>
+        <dd class="muted">{{ item.created_at[:10] }}{% if item.created_by_name %} by {{ item.created_by_name }}{% endif %}</dd>
       </dl>
+
+      <div class="qr-section">
+        <img src="{{ url_for('item_qr', item_id=item.id) }}" alt="QR code" class="qr-img">
+        <div class="qr-meta">
+          <span class="qr-label">Scan to open</span>
+          <a href="{{ url_for('item_qr', item_id=item.id) }}" download="{{ item.name }}-qr.png" class="qr-dl muted">⬇ download PNG</a>
+        </div>
+      </div>
     </section>
 
-    <section class="card">
+    <section class="card attr-section" data-item-id="{{ item.id }}">
       <h2>Specifications</h2>
       {% if attrs %}
       <dl class="dl">
         {% for attr in attrs %}
         <dt>{{ attr.key }}</dt>
-        <dd class="attr-row">
-          {{ attr.value }}
-          <form method="post" action="{{ url_for('delete_attribute', attr_id=attr.id) }}" class="inline-form">
-            <button type="submit" class="btn-del" title="Remove">×</button>
-          </form>
+        <dd class="attr-row" id="attr-row-{{ attr.id }}">
+          <span class="attr-value" data-attr-id="{{ attr.id }}" title="Click to edit">{{ attr.value }}</span>
+          <button class="btn-del" data-attr-id="{{ attr.id }}" title="Remove">×</button>
         </dd>
         {% endfor %}
       </dl>
@@ -53,6 +69,22 @@
 
     <section class="card">
       <h2>Relationships</h2>
+      {% if rels_from or rels_to %}
+      <div id="rel-graph"></div>
+      <script>
+      window.relData = {
+        self: { id: {{ item.id }}, name: {{ item.name|tojson }} },
+        edges: [
+          {% for r in rels_from %}
+          { otherId: {{ r.to_item }}, otherName: {{ r.related_name|tojson }}, relation: {{ r.relation|tojson }}, dir: "out" }{% if not loop.last or rels_to %},{% endif %}
+          {% endfor %}
+          {% for r in rels_to %}
+          { otherId: {{ r.from_item }}, otherName: {{ r.related_name|tojson }}, relation: {{ r.relation|tojson }}, dir: "in" }{% if not loop.last %},{% endif %}
+          {% endfor %}
+        ]
+      };
+      </script>
+      {% endif %}
       {% if rels_from %}
         {% for r in rels_from %}
         <div class="rel-row">
@@ -119,7 +151,7 @@
       <p class="empty">No events logged.</p>
       {% endif %}
 
-      <form method="post" action="{{ url_for('add_event', item_id=item.id) }}" class="event-form">
+      <form method="post" action="{{ url_for('add_event', item_id=item.id) }}" class="event-form" data-item-id="{{ item.id }}">
         <h3>Log event</h3>
         <div class="field-row">
           <div class="field">

@@ -15,7 +15,12 @@
     <div class="nav-links">
       <a href="{{ url_for('items') }}">Items</a>
       <a href="{{ url_for('locations') }}">Locations</a>
-      <a href="{{ url_for('add_item') }}" class="nav-add">+ Add Item</a>
+      <div class="nav-search">
+        <input type="search" id="nav-search-input" class="nav-search-input"
+               placeholder="Search… (/)" autocomplete="off" spellcheck="false">
+        <div id="nav-search-results" class="nav-search-results" hidden></div>
+      </div>
+      <a href="{{ url_for('add_item') }}" class="nav-add" id="qa-trigger">+ Add Item</a>
       {% if current_user.is_admin %}<a href="{{ url_for('admin') }}">Admin</a>{% endif %}
       <span class="nav-user">{{ current_user.display_name or current_user.username }} · <a href="{{ url_for('logout') }}">logout</a></span>
     </div>
@@ -36,5 +41,47 @@
 
     {% block content %}{% endblock %}
   </main>
+
+  {% if current_user %}
+  <!-- Quick-add panel (Phase 4) -->
+  <div id="qa-overlay" class="qa-overlay"></div>
+  <div id="qa-panel" class="qa-panel" role="dialog" aria-label="Quick Add Item">
+    <div class="qa-header">
+      <h2>Quick Add Item</h2>
+      <button id="qa-close" class="qa-close" aria-label="Close">×</button>
+    </div>
+    <form id="qa-form" autocomplete="off">
+      <div class="field">
+        <label>Name <span class="req">*</span></label>
+        <input type="text" id="qa-name" placeholder="e.g. Driveway Hose Bib" required>
+      </div>
+      <div class="field">
+        <label>Category</label>
+        <input type="text" id="qa-category" list="qa-categories" placeholder="e.g. plumbing">
+        <datalist id="qa-categories">
+          <option value="plumbing"><option value="electrical"><option value="structural">
+          <option value="appliance"><option value="hvac"><option value="landscaping">
+          <option value="exterior"><option value="fixture"><option value="tool">
+          <option value="vehicle">
+        </datalist>
+      </div>
+      <div class="field">
+        <label>Location</label>
+        <select id="qa-location"><option value="">Loading…</option></select>
+      </div>
+      <div class="field">
+        <label>Notes</label>
+        <textarea id="qa-notes" rows="3" placeholder="Optional details…"></textarea>
+      </div>
+      <div class="qa-actions">
+        <button type="submit" class="btn btn-primary">Save Item</button>
+        <button type="button" id="qa-cancel" class="btn btn-ghost">Cancel</button>
+      </div>
+      <div id="qa-feedback" class="qa-feedback"></div>
+    </form>
+  </div>
+  {% endif %}
+
+  <script src="{{ url_for('static', filename='js/house.js') }}"></script>
 </body>
 </html>

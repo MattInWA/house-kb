@@ -11,20 +11,23 @@ import functools
 import uuid
 import mimetypes
 from datetime import datetime
+from io import BytesIO
 from flask import (
     Flask, g, request, session, redirect, url_for,
-    render_template, jsonify, flash, abort, send_from_directory
+    render_template, jsonify, flash, abort, send_from_directory, send_file
 )
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import pillow_heif
 
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 
-DB_PATH = os.environ.get("HOUSE_DB", "/home/share/house/house.db")
+DB_PATH = os.environ.get("HOUSE_DB", os.path.join(os.path.dirname(__file__), "data", "house.db"))
 SECRET_KEY = os.environ.get("HOUSE_SECRET", "change-me-in-production")
-UPLOAD_DIR = os.environ.get("HOUSE_UPLOADS", "/home/matt/house/uploads")
+UPLOAD_DIR = os.environ.get("HOUSE_UPLOADS", os.path.join(os.path.dirname(__file__), "uploads"))
+BASE_URL = os.environ.get("HOUSE_BASE_URL", "").rstrip("/")
+QR_LABEL = os.environ.get("HOUSE_QR_LABEL", "house-kb")
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic", ".pdf"}
 MAX_UPLOAD_MB = 20
 
@@ -376,6 +379,20 @@ def add_item():
         name = request.form.get("name", "").strip()
         if not name:
             flash("Name is required.", "error")
+        elif query("SELECT id FROM items WHERE LOWER(name) = LOWER(?) AND location_id IS ?",
+                   (name, request.form.get("location_id") or None)):
+            flash(f"An item named '{name}' already exists at that location.", "error")
+            all_locs = query("""
+                SELECT l.id, l.name, p.name as parent_name
+                FROM locations l
+                LEFT JOIN locations p ON p.id = l.parent_id
+                ORDER BY p.name NULLS FIRST, l.name
+            """)
+            categories = query("SELECT DISTINCT category FROM items WHERE category IS NOT NULL ORDER BY category")
+            return render_template("add_item.html",
+                                   form_data=request.form,
+                                   all_locations=all_locs,
+                                   categories=categories)
         else:
             user = current_user()
             item_id = execute("""
@@ -425,7 +442,24 @@ def add_item():
         ORDER BY p.name NULLS FIRST, l.name
     """)
     categories = query("SELECT DISTINCT category FROM items WHERE category IS NOT NULL ORDER BY category")
-    return render_template("add_item.html", all_locations=all_locs, categories=categories)
+    clone_data = None
+    clone_from = request.args.get("clone_from")
+    if clone_from:
+        src = query("SELECT * FROM items WHERE id = ?", (clone_from,), one=True)
+        if src:
+            src_attrs = query("SELECT key, value FROM attributes WHERE item_id = ? ORDER BY key",
+                              (int(clone_from),))
+            clone_data = {
+                "source_name": src["name"],
+                "category":    src["category"] or "",
+                "location_id": str(src["location_id"] or ""),
+                "manufacturer": src["manufacturer"] or "",
+                "model":       src["model"] or "",
+                "notes":       src["notes"] or "",
+                "attrs": [{"key": a["key"], "value": a["value"]} for a in src_attrs],
+            }
+    return render_template("add_item.html", all_locations=all_locs, categories=categories,
+                           clone_data=clone_data)
 
 
 @app.route("/items/<int:item_id>")
@@ -497,40 +531,67 @@ def edit_item(item_id):
 @app.route("/items/<int:item_id>/add_attribute", methods=["POST"])
 @login_required
 def add_attribute(item_id):
-    key = request.form.get("key", "").strip()
-    value = request.form.get("value", "").strip()
-    if key and value:
-        execute("INSERT INTO attributes (item_id, key, value) VALUES (?, ?, ?)", (item_id, key, value))
-        flash("Attribute added.", "success")
+    is_fetch = request.headers.get("X-Requested-With") == "fetch"
+    if is_fetch:
+        data = request.get_json(force=True) or {}
+        key = (data.get("key") or "").strip()
+        value = (data.get("value") or "").strip()
+    else:
+        key = request.form.get("key", "").strip()
+        value = request.form.get("value", "").strip()
+    if not (key and value):
+        if is_fetch:
+            return jsonify({"error": "Key and value required"}), 400
+        return redirect(url_for("item_detail", item_id=item_id))
+    attr_id = execute("INSERT INTO attributes (item_id, key, value) VALUES (?, ?, ?)", (item_id, key, value))
+    if is_fetch:
+        return jsonify({"ok": True, "id": attr_id, "key": key, "value": value})
+    flash("Attribute added.", "success")
     return redirect(url_for("item_detail", item_id=item_id))
 
 
 @app.route("/attributes/<int:attr_id>/delete", methods=["POST"])
 @login_required
 def delete_attribute(attr_id):
+    is_fetch = request.headers.get("X-Requested-With") == "fetch"
     attr = query("SELECT * FROM attributes WHERE id = ?", (attr_id,), one=True)
-    if attr:
-        execute("DELETE FROM attributes WHERE id = ?", (attr_id,))
-        flash("Attribute removed.", "success")
-        return redirect(url_for("item_detail", item_id=attr["item_id"]))
-    abort(404)
+    if not attr:
+        if is_fetch:
+            return jsonify({"error": "Not found"}), 404
+        abort(404)
+    execute("DELETE FROM attributes WHERE id = ?", (attr_id,))
+    if is_fetch:
+        return jsonify({"ok": True})
+    flash("Attribute removed.", "success")
+    return redirect(url_for("item_detail", item_id=attr["item_id"]))
 
 
 @app.route("/items/<int:item_id>/add_event", methods=["POST"])
 @login_required
 def add_event(item_id):
+    is_fetch = request.headers.get("X-Requested-With") == "fetch"
     user = current_user()
-    execute("""
+    if is_fetch:
+        data = request.get_json(force=True) or {}
+        event_date = (data.get("event_date") or "").strip() or None
+        event_type = data.get("event_type") or "noted"
+        description = (data.get("description") or "").strip() or None
+        cost = data.get("cost") or None
+    else:
+        event_date = request.form.get("event_date", "").strip() or None
+        event_type = request.form.get("event_type", "noted")
+        description = request.form.get("description", "").strip() or None
+        cost = request.form.get("cost") or None
+    event_id = execute("""
         INSERT INTO events (item_id, event_date, event_type, description, cost, created_by)
         VALUES (?, ?, ?, ?, ?, ?)
-    """, (
-        item_id,
-        request.form.get("event_date", "").strip() or None,
-        request.form.get("event_type", "noted"),
-        request.form.get("description", "").strip() or None,
-        request.form.get("cost") or None,
-        user["id"] if user else None,
-    ))
+    """, (item_id, event_date, event_type, description, cost, user["id"] if user else None))
+    if is_fetch:
+        return jsonify({
+            "ok": True, "id": event_id,
+            "event_date": event_date, "event_type": event_type,
+            "description": description, "cost": float(cost) if cost else None,
+        })
     flash("Event logged.", "success")
     return redirect(url_for("item_detail", item_id=item_id))
 
@@ -729,6 +790,169 @@ def api_list_locations():
     return jsonify([dict(r) for r in rows])
 
 
+@app.route("/check/item-name")
+@login_required
+def check_item_name():
+    name = request.args.get("name", "").strip()
+    location_id = request.args.get("location_id") or None
+    exclude_id = request.args.get("exclude_id") or None
+    if not name:
+        return jsonify({"exists": False})
+    sql = "SELECT id, name FROM items WHERE LOWER(name) = LOWER(?) AND location_id IS ?"
+    args = [name, location_id]
+    if exclude_id:
+        sql += " AND id != ?"
+        args.append(int(exclude_id))
+    row = query(sql, args, one=True)
+    if row:
+        return jsonify({"exists": True, "item_id": row["id"], "item_name": row["name"]})
+    return jsonify({"exists": False})
+
+
+@app.route("/check/location-name")
+@login_required
+def check_location_name():
+    name = request.args.get("name", "").strip()
+    parent_id = request.args.get("parent_id") or None
+    exclude_id = request.args.get("exclude_id") or None
+    if not name:
+        return jsonify({"exists": False})
+    sql = "SELECT id FROM locations WHERE LOWER(name) = LOWER(?) AND parent_id IS ?"
+    args = [name, parent_id]
+    if exclude_id:
+        sql += " AND id != ?"
+        args.append(int(exclude_id))
+    row = query(sql, args, one=True)
+    return jsonify({"exists": bool(row)})
+
+
+@app.route("/locations.json")
+@login_required
+def locations_json():
+    rows = query("""
+        SELECT l.id, l.name, p.name as parent_name
+        FROM locations l
+        LEFT JOIN locations p ON p.id = l.parent_id
+        ORDER BY p.name NULLS FIRST, l.name
+    """)
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/items/search.json")
+@login_required
+def items_search_json():
+    category = request.args.get("category", "")
+    search = request.args.get("q", "").strip()
+    sql = """
+        SELECT i.id, i.name, i.category, i.manufacturer, i.purchased_date,
+               l.name as location_name
+        FROM items i LEFT JOIN locations l ON l.id = i.location_id
+        WHERE 1=1
+    """
+    args = []
+    if category:
+        sql += " AND i.category = ?"
+        args.append(category)
+    if search:
+        sql += " AND (i.name LIKE ? OR i.notes LIKE ? OR i.manufacturer LIKE ? OR i.model LIKE ?)"
+        args.extend([f"%{search}%"] * 4)
+    sql += " ORDER BY i.name"
+    rows = query(sql, args)
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/quick-add", methods=["POST"])
+@login_required
+def quick_add():
+    data = request.get_json(force=True) or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "Name is required"}), 400
+    location_id = data.get("location_id") or None
+    if query("SELECT id FROM items WHERE LOWER(name) = LOWER(?) AND location_id IS ?",
+             (name, location_id), one=True):
+        return jsonify({"error": f"'{name}' already exists at that location"}), 409
+    user = current_user()
+    item_id = execute("""
+        INSERT INTO items (name, category, location_id, notes, created_by, updated_at)
+        VALUES (?, ?, ?, ?, ?, datetime('now'))
+    """, (
+        name,
+        (data.get("category") or "").strip() or None,
+        location_id,
+        (data.get("notes") or "").strip() or None,
+        user["id"] if user else None,
+    ))
+    return jsonify({"id": item_id, "name": name, "url": url_for("item_detail", item_id=item_id)}), 201
+
+
+@app.route("/attributes/<int:attr_id>/edit", methods=["POST"])
+@login_required
+def edit_attribute(attr_id):
+    attr = query("SELECT * FROM attributes WHERE id = ?", (attr_id,), one=True)
+    if not attr:
+        return jsonify({"error": "Not found"}), 404
+    data = request.get_json(force=True) or {}
+    value = (data.get("value") or "").strip()
+    if not value:
+        return jsonify({"error": "Value required"}), 400
+    execute("UPDATE attributes SET value = ? WHERE id = ?", (value, attr_id))
+    return jsonify({"ok": True, "value": value})
+
+
+@app.route("/search.json")
+@login_required
+def search_json():
+    q = request.args.get("q", "").strip()
+    if len(q) < 2:
+        return jsonify([])
+    like = f"%{q}%"
+    items = query("""
+        SELECT DISTINCT i.id, i.name, i.category, l.name as location_name
+        FROM items i
+        LEFT JOIN locations l ON l.id = i.location_id
+        LEFT JOIN attributes a ON a.item_id = i.id
+        WHERE i.name LIKE ? OR i.manufacturer LIKE ? OR i.model LIKE ? OR a.value LIKE ?
+        ORDER BY i.name LIMIT 6
+    """, [like] * 4)
+    locs = query("""
+        SELECT l.id, l.name, p.name as parent_name
+        FROM locations l LEFT JOIN locations p ON p.id = l.parent_id
+        WHERE l.name LIKE ? ORDER BY l.name LIMIT 3
+    """, [like])
+    results = []
+    for item in items:
+        parts = [p for p in [item["category"], item["location_name"]] if p]
+        results.append({
+            "type": "item", "id": item["id"], "name": item["name"],
+            "subtitle": " · ".join(parts) if parts else None,
+            "url": url_for("item_detail", item_id=item["id"]),
+        })
+    for loc in locs:
+        results.append({
+            "type": "location", "id": loc["id"], "name": loc["name"],
+            "subtitle": loc["parent_name"],
+            "url": url_for("location_detail", loc_id=loc["id"]),
+        })
+    return jsonify(results)
+
+
+_EDITABLE_ITEM_FIELDS = {"manufacturer", "model", "purchased_date", "installed_date", "notes", "category"}
+
+@app.route("/items/<int:item_id>/edit-field", methods=["POST"])
+@login_required
+def edit_item_field(item_id):
+    if not query("SELECT id FROM items WHERE id = ?", (item_id,), one=True):
+        return jsonify({"error": "Not found"}), 404
+    data = request.get_json(force=True) or {}
+    field = data.get("field", "")
+    if field not in _EDITABLE_ITEM_FIELDS:
+        return jsonify({"error": "Invalid field"}), 400
+    value = (data.get("value") or "").strip() or None
+    execute(f"UPDATE items SET {field} = ?, updated_at = datetime('now') WHERE id = ?", (value, item_id))
+    return jsonify({"ok": True, "value": value or ""})
+
+
 @app.route("/api/search", methods=["GET"])
 @api_key_required
 def api_search():
@@ -747,6 +971,76 @@ def api_search():
         LIMIT 50
     """, [f"%{q}%"] * 4)
     return jsonify([dict(r) for r in items])
+
+
+# ---------------------------------------------------------------------------
+# QR codes
+# ---------------------------------------------------------------------------
+
+@app.route("/items/<int:item_id>/qr.png")
+@login_required
+def item_qr(item_id):
+    import qrcode
+    item = query("SELECT id, name FROM items WHERE id = ?", (item_id,), one=True)
+    if not item:
+        abort(404)
+
+    root = BASE_URL or request.url_root.rstrip("/")
+    url  = root + url_for("item_detail", item_id=item_id)
+
+    # Generate QR
+    qr = qrcode.QRCode(box_size=6, border=2,
+                       error_correction=qrcode.constants.ERROR_CORRECT_M)
+    qr.add_data(url)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="#2a2520", back_color="#f7f4f0").convert("RGB")
+    qr_w, qr_h = qr_img.size
+
+    # Load a system font; fall back to PIL default
+    font_lg = font_sm = None
+    for fp in ["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+               "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+               "/usr/share/fonts/truetype/freefont/FreeSans.ttf"]:
+        if os.path.exists(fp):
+            font_lg = ImageFont.truetype(fp, 14)
+            font_sm = ImageFont.truetype(fp, 11)
+            break
+    if not font_lg:
+        font_lg = font_sm = ImageFont.load_default()
+
+    BG    = (247, 244, 240)   # --bg
+    INK   = ( 42,  37,  32)   # --text
+    MUTED = (138, 128, 120)   # --muted
+    GAP   = 7
+    PAD_B = 12
+
+    name_text = item["name"] if len(item["name"]) <= 28 else item["name"][:27] + "…"
+    sub_text  = QR_LABEL
+
+    # Measure text on a throwaway canvas
+    _tmp  = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    nb    = _tmp.textbbox((0, 0), name_text, font=font_lg)
+    sb    = _tmp.textbbox((0, 0), sub_text,  font=font_sm)
+    name_w, name_h = nb[2] - nb[0], nb[3] - nb[1]
+    sub_w,  sub_h  = sb[2] - sb[0], sb[3] - sb[1]
+
+    total_w = max(qr_w, name_w + 16, sub_w + 16)
+    total_h = qr_h + GAP + name_h + GAP + sub_h + PAD_B
+
+    # Composite
+    out  = Image.new("RGB", (total_w, total_h), BG)
+    out.paste(qr_img, ((total_w - qr_w) // 2, 0))
+    draw = ImageDraw.Draw(out)
+    draw.text(((total_w - name_w) // 2 - nb[0], qr_h + GAP - nb[1]),
+              name_text, font=font_lg, fill=INK)
+    draw.text(((total_w - sub_w)  // 2 - sb[0], qr_h + GAP + name_h + GAP - sb[1]),
+              sub_text,  font=font_sm, fill=MUTED)
+
+    buf = BytesIO()
+    out.save(buf, format="PNG")
+    buf.seek(0)
+    return send_file(buf, mimetype="image/png",
+                     download_name=f"item-{item_id}-qr.png")
 
 
 # ---------------------------------------------------------------------------
@@ -835,4 +1129,5 @@ def delete_attachment(att_id):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5055, debug=False)
+    port = int(os.environ.get("HOUSE_PORT", 5000))
+    app.run(host="127.0.0.1", port=port, debug=False)
