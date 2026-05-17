@@ -5,7 +5,7 @@
   <div>
     <div class="breadcrumb"><a href="{{ url_for('items') }}">Items</a> /</div>
     <h1>{{ item.name }}</h1>
-    {% if item.location_name %}<div class="subtitle">{{ item.location_name }}</div>{% endif %}
+    {% if item.location_name %}<div class="subtitle"><a href="{{ url_for('location_detail', loc_id=item.location_id) }}">{{ item.location_name }}</a></div>{% endif %}
   </div>
   <div style="display:flex;gap:0.5rem">
     <a href="{{ url_for('add_item', clone_from=item.id) }}" class="btn">Duplicate</a>
@@ -117,9 +117,18 @@
         </select>
         <select name="to_item" class="input-sm">
           <option value="">— select item —</option>
-          {% for i in all_items %}
-          <option value="{{ i.id }}">{{ i.name }}</option>
-          {% endfor %}
+          {% set same = all_items | selectattr('location_id', 'equalto', item.location_id) | list %}
+          {% set other = all_items | rejectattr('location_id', 'equalto', item.location_id) | list %}
+          {% if same and other %}
+          <optgroup label="Same location">
+            {% for i in same %}<option value="{{ i.id }}">{{ i.name }}</option>{% endfor %}
+          </optgroup>
+          <optgroup label="Other">
+            {% for i in other %}<option value="{{ i.id }}">{{ i.name }}</option>{% endfor %}
+          </optgroup>
+          {% else %}
+          {% for i in all_items %}<option value="{{ i.id }}">{{ i.name }}</option>{% endfor %}
+          {% endif %}
         </select>
         <input type="text" name="notes" placeholder="Notes (optional)" class="input-sm">
         <button type="submit" class="btn btn-sm">Add</button>

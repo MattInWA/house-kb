@@ -775,3 +775,72 @@
   });
 
 }());
+
+function initLocCombo(inputId, hiddenId, dropdownId, locations) {
+  const input    = document.getElementById(inputId);
+  const hidden   = document.getElementById(hiddenId);
+  const dropdown = document.getElementById(dropdownId);
+  let activeIdx  = -1;
+
+  function getOpts() { return dropdown.querySelectorAll('.loc-option'); }
+
+  function render(matches) {
+    dropdown.innerHTML = '';
+    activeIdx = -1;
+    if (!matches.length) { dropdown.hidden = true; return; }
+    matches.forEach(loc => {
+      const div = document.createElement('div');
+      div.className = 'loc-option';
+      div.textContent = loc.label;
+      div.dataset.id = loc.id;
+      div.addEventListener('mousedown', e => { e.preventDefault(); pick(loc); });
+      dropdown.appendChild(div);
+    });
+    dropdown.hidden = false;
+  }
+
+  function pick(loc) {
+    input.value  = loc.label;
+    hidden.value = loc.id;
+    dropdown.hidden = true;
+    activeIdx = -1;
+  }
+
+  function search(q) {
+    if (!q) { dropdown.hidden = true; return; }
+    const lq = q.toLowerCase();
+    render(locations.filter(l => l.label.toLowerCase().includes(lq)).slice(0, 12));
+  }
+
+  input.addEventListener('input', () => {
+    hidden.value = '';
+    search(input.value.trim());
+  });
+
+  input.addEventListener('focus', () => {
+    if (input.value.trim() && dropdown.hidden) search(input.value.trim());
+  });
+
+  input.addEventListener('keydown', e => {
+    const opts = getOpts();
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, opts.length - 1);
+      opts.forEach((o, i) => o.classList.toggle('active', i === activeIdx));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+      opts.forEach((o, i) => o.classList.toggle('active', i === activeIdx));
+    } else if (e.key === 'Enter' && !dropdown.hidden && activeIdx >= 0) {
+      e.preventDefault();
+      pick(locations.find(l => l.id == opts[activeIdx].dataset.id));
+    } else if (e.key === 'Tab' && !dropdown.hidden) {
+      const target = activeIdx >= 0 ? opts[activeIdx] : (opts.length === 1 ? opts[0] : null);
+      if (target) { e.preventDefault(); pick(locations.find(l => l.id == target.dataset.id)); }
+    } else if (e.key === 'Escape') {
+      dropdown.hidden = true;
+    }
+  });
+
+  input.addEventListener('blur', () => setTimeout(() => { dropdown.hidden = true; }, 150));
+}

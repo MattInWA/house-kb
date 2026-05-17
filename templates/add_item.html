@@ -39,15 +39,11 @@
         </div>
         <div class="field">
           <label>Location</label>
-          <select name="location_id" data-check-secondary="location_id">
-            <option value="">— none —</option>
-            {% for loc in all_locations %}
-            <option value="{{ loc.id }}"
-              {% if clone_data and clone_data.location_id == loc.id|string %}selected{% endif %}>
-              {% if loc.parent_name %}{{ loc.parent_name }} › {% endif %}{{ loc.name }}
-            </option>
-            {% endfor %}
-          </select>
+          <div class="loc-combo">
+            <input type="text" id="loc-input" autocomplete="off" placeholder="Search locations…">
+            <input type="hidden" name="location_id" id="loc-id">
+            <div class="loc-dropdown" id="loc-dropdown" hidden></div>
+          </div>
         </div>
       </div>
       <div class="field-row">
@@ -62,10 +58,14 @@
                  value="{{ clone_data.model if clone_data else '' }}">
         </div>
       </div>
-      <div class="field-row">
+      <div class="field-row" style="grid-template-columns:1fr 1fr 1fr">
         <div class="field">
           <label>Purchased</label>
           <input type="text" name="purchased_date" placeholder="2026-04">
+        </div>
+        <div class="field">
+          <label>Purchase Price</label>
+          <input type="number" name="purchase_price" placeholder="0.00" min="0" step="0.01">
         </div>
         <div class="field">
           <label>Installed</label>
@@ -106,6 +106,9 @@
   </form>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
 <script>
 const CATEGORY_SUGGESTIONS = {
   vehicle:    ['year_manufactured', 'serial_number', 'engine_hours', 'engine_hours_date'],
@@ -134,14 +137,35 @@ document.getElementById('add-attr').addEventListener('click', function() {
 document.querySelector('[name="category"]').addEventListener('change', function() {
   const suggestions = CATEGORY_SUGGESTIONS[this.value.toLowerCase()];
   if (!suggestions) return;
-  // Only pre-populate if all current rows are empty
   const existingKeys = [...document.querySelectorAll('[name="attr_key"]')].map(i => i.value.trim());
-  const allEmpty = existingKeys.every(k => k === '');
-  if (!allEmpty) return;
-  // Clear the single blank starter row, add suggested rows
+  if (!existingKeys.every(k => k === '')) return;
   document.getElementById('attrs').innerHTML = '';
   suggestions.forEach(k => addAttrRow(k, ''));
 });
 {% endif %}
+
+const LOC_DATA = [
+  {% for loc in all_locations %}{"id": {{ loc.id }}, "label": {{ ((loc.parent_name + ' › ' + loc.name) if loc.parent_name else loc.name)|tojson }}},
+  {% endfor %}
+];
+{% if clone_data and clone_data.location_id %}
+(function() {
+  const pre = LOC_DATA.find(l => l.id == {{ clone_data.location_id }});
+  if (pre) { document.getElementById('loc-input').value = pre.label; document.getElementById('loc-id').value = pre.id; }
+})();
+{% endif %}
+initLocCombo('loc-input', 'loc-id', 'loc-dropdown', LOC_DATA);
+
+document.querySelector('form').addEventListener('submit', function(e) {
+  const locId = document.getElementById('loc-id').value;
+  const locInput = document.getElementById('loc-input');
+  if (!locId) {
+    e.preventDefault();
+    locInput.style.borderColor = 'red';
+    locInput.style.outlineColor = 'red';
+    locInput.focus();
+    locInput.placeholder = 'Required — pick a location from the list';
+  }
+});
 </script>
 {% endblock %}

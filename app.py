@@ -377,10 +377,13 @@ def items():
 def add_item():
     if request.method == "POST":
         name = request.form.get("name", "").strip()
+        location_id = request.form.get("location_id") or None
         if not name:
             flash("Name is required.", "error")
+        elif not location_id:
+            flash("Location is required.", "error")
         elif query("SELECT id FROM items WHERE LOWER(name) = LOWER(?) AND location_id IS ?",
-                   (name, request.form.get("location_id") or None)):
+                   (name, location_id)):
             flash(f"An item named '{name}' already exists at that location.", "error")
             all_locs = query("""
                 SELECT l.id, l.name, p.name as parent_name
@@ -402,7 +405,7 @@ def add_item():
             """, (
                 name,
                 request.form.get("category", "").strip() or None,
-                request.form.get("location_id") or None,
+                location_id,
                 request.form.get("purchased_date", "").strip() or None,
                 request.form.get("installed_date", "").strip() or None,
                 request.form.get("manufacturer", "").strip() or None,
@@ -421,13 +424,15 @@ def add_item():
                     execute("INSERT INTO attributes (item_id, key, value) VALUES (?, ?, ?)",
                             (item_id, k, v))
 
-            # Auto-create purchase event if date provided
-            purchased_date = request.form.get("purchased_date", "").strip()
-            if purchased_date:
+            # Auto-create purchase event if date or price provided
+            purchased_date = request.form.get("purchased_date", "").strip() or None
+            purchase_price_raw = request.form.get("purchase_price", "").strip()
+            purchase_price = float(purchase_price_raw) if purchase_price_raw else None
+            if purchased_date or purchase_price is not None:
                 execute("""
-                    INSERT INTO events (item_id, event_date, event_type, description, created_by)
-                    VALUES (?, ?, 'purchased', 'Initial purchase', ?)
-                """, (item_id, purchased_date, user["id"] if user else None))
+                    INSERT INTO events (item_id, event_date, event_type, description, cost, created_by)
+                    VALUES (?, ?, 'purchased', 'Initial purchase', ?, ?)
+                """, (item_id, purchased_date, purchase_price, user["id"] if user else None))
 
             flash(f"'{name}' added.", "success")
             action = request.form.get("action", "save")
@@ -486,7 +491,7 @@ def item_detail(item_id):
         FROM relationships r JOIN items i ON i.id = r.from_item
         WHERE r.to_item = ?
     """, (item_id,))
-    all_items = query("SELECT id, name FROM items WHERE id != ? ORDER BY name", (item_id,))
+    all_items = query("SELECT id, name, location_id FROM items WHERE id != ? ORDER BY name", (item_id,))
     attachments = query("SELECT * FROM attachments WHERE item_id = ? ORDER BY created_at", (item_id,))
     return render_template("item_detail.html", item=item, attrs=attrs,
                            events=events, rels_from=rels_from, rels_to=rels_to,

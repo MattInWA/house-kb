@@ -211,6 +211,11 @@ h3 { font-size: 0.9rem; font-weight: 500; text-transform: uppercase; letter-spac
 .field label { font-size: 0.82rem; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .req { color: var(--accent); }
+.loc-combo { position: relative; }
+.loc-combo input[type="text"] { width: 100%; }
+.loc-dropdown { position: absolute; top: calc(100% + 2px); left: 0; right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); max-height: 220px; overflow-y: auto; z-index: 200; }
+.loc-option { padding: 0.45rem 0.75rem; cursor: pointer; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loc-option:hover, .loc-option.active { background: var(--accent-lt); color: var(--accent); }
 
 input[type="text"], input[type="password"], input[type="search"],
 input[type="number"], select, textarea {

@@ -26,14 +26,11 @@
         </div>
         <div class="field">
           <label>Location</label>
-          <select name="location_id" data-check-secondary="location_id">
-            <option value="">— none —</option>
-            {% for loc in all_locations %}
-            <option value="{{ loc.id }}" {% if item.location_id == loc.id %}selected{% endif %}>
-              {% if loc.parent_name %}{{ loc.parent_name }} › {% endif %}{{ loc.name }}
-            </option>
-            {% endfor %}
-          </select>
+          <div class="loc-combo">
+            <input type="text" id="loc-input" autocomplete="off" placeholder="Search locations…">
+            <input type="hidden" name="location_id" id="loc-id">
+            <div class="loc-dropdown" id="loc-dropdown" hidden></div>
+          </div>
         </div>
       </div>
       <div class="field-row">
@@ -67,4 +64,20 @@
     </div>
   </form>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const LOC_DATA = [
+  {% for loc in all_locations %}{"id": {{ loc.id }}, "label": {{ ((loc.parent_name + ' › ' + loc.name) if loc.parent_name else loc.name)|tojson }}},
+  {% endfor %}
+];
+{% if item.location_id %}
+(function() {
+  const pre = LOC_DATA.find(l => l.id === {{ item.location_id }});
+  if (pre) { document.getElementById('loc-input').value = pre.label; document.getElementById('loc-id').value = pre.id; }
+})();
+{% endif %}
+initLocCombo('loc-input', 'loc-id', 'loc-dropdown', LOC_DATA);
+</script>
 {% endblock %}
