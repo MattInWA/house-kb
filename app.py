@@ -94,7 +94,7 @@ def verify_password(stored: str, password: str) -> bool:
 
 
 def hash_api_key(key: str) -> str:
-    return hashlib.sha3_256(key.encode()).hexdigest()
+    return hmac.new(SECRET_KEY.encode(), key.encode(), hashlib.sha256).hexdigest()
 
 
 def current_user():
