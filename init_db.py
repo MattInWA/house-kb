@@ -21,9 +21,9 @@ SCHEMA_FILE = os.path.join(os.path.dirname(__file__), "schema.sql")
 
 
 def hash_password(password: str) -> str:
-    salt = secrets.token_hex(32)
-    h = hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
-    return f"{salt}:{h}"
+    salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 260000)
+    return f"pbkdf2:{salt}:{dk.hex()}"
 
 
 def init_db(db_path: str):

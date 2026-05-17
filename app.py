@@ -5,6 +5,7 @@ House Knowledge Base — Flask app
 
 import sqlite3
 import hashlib
+import hmac
 import secrets
 import os
 import functools
@@ -12,6 +13,7 @@ import uuid
 import mimetypes
 from datetime import datetime
 from io import BytesIO
+from urllib.parse import urlparse
 from flask import (
     Flask, g, request, session, redirect, url_for,
     render_template, jsonify, flash, abort, send_from_directory, send_file
@@ -74,16 +76,25 @@ def execute(sql, args=()):
 # Auth helpers
 # ---------------------------------------------------------------------------
 
+_PBKDF2_ITERS = 260000
+
+
 def hash_password(password: str) -> str:
-    salt = secrets.token_hex(32)
-    h = hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
-    return f"{salt}:{h}"
+    salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), _PBKDF2_ITERS)
+    return f"pbkdf2:{salt}:{dk.hex()}"
 
 
 def verify_password(stored: str, password: str) -> bool:
     try:
+        if stored.startswith("pbkdf2:"):
+            _, salt, h = stored.split(":", 2)
+            dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), _PBKDF2_ITERS)
+            return hmac.compare_digest(dk.hex(), h)
+        # Legacy SHA-256 format: "salt:hexhash" — accepted but will be upgraded on login
         salt, h = stored.split(":", 1)
-        return hashlib.sha256(f"{salt}{password}".encode()).hexdigest() == h
+        candidate = hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
+        return hmac.compare_digest(candidate, h)
     except Exception:
         return False
 
@@ -157,9 +168,15 @@ def login():
         password = request.form.get("password", "")
         user = query("SELECT * FROM users WHERE username = ?", (username,), one=True)
         if user and verify_password(user["password_hash"], password):
+            if not user["password_hash"].startswith("pbkdf2:"):
+                execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                        (hash_password(password), user["id"]))
             session.clear()
             session["user_id"] = user["id"]
-            next_url = request.args.get("next") or url_for("index")
+            next_url = request.args.get("next", "")
+            parsed = urlparse(next_url)
+            if not next_url or parsed.netloc or parsed.scheme:
+                next_url = url_for("index")
             return redirect(next_url)
         flash("Invalid username or password.", "error")
     return render_template("login.html")
@@ -760,6 +777,14 @@ def api_create_item():
     return jsonify({"id": item_id, "name": data["name"]}), 201
 
 
+_API_ITEM_FIELDS = ["name", "category", "location_id", "purchased_date",
+                    "installed_date", "manufacturer", "model", "notes"]
+_API_ITEM_UPDATE_SQL = {
+    f: f"UPDATE items SET {f} = ?, updated_at = datetime('now') WHERE id = ?"
+    for f in _API_ITEM_FIELDS
+}
+
+
 @app.route("/api/items/<int:item_id>", methods=["PATCH"])
 @api_key_required
 def api_update_item(item_id):
@@ -767,13 +792,9 @@ def api_update_item(item_id):
     if not item:
         return jsonify({"error": "Not found"}), 404
     data = request.get_json(force=True) or {}
-    fields = ["name", "category", "location_id", "purchased_date",
-              "installed_date", "manufacturer", "model", "notes"]
-    updates = {f: data[f] for f in fields if f in data}
-    if updates:
-        set_clause = ", ".join(f"{k} = ?" for k in updates)
-        execute(f"UPDATE items SET {set_clause}, updated_at = datetime('now') WHERE id = ?",
-                list(updates.values()) + [item_id])
+    for f in _API_ITEM_FIELDS:
+        if f in data:
+            execute(_API_ITEM_UPDATE_SQL[f], (data[f], item_id))
     if "attributes" in data:
         for k, v in data["attributes"].items():
             existing = query("SELECT id FROM attributes WHERE item_id = ? AND key = ?", (item_id, k), one=True)
@@ -943,6 +964,10 @@ def search_json():
 
 
 _EDITABLE_ITEM_FIELDS = {"manufacturer", "model", "purchased_date", "installed_date", "notes", "category"}
+_EDIT_FIELD_SQL = {
+    f: f"UPDATE items SET {f} = ?, updated_at = datetime('now') WHERE id = ?"
+    for f in _EDITABLE_ITEM_FIELDS
+}
 
 @app.route("/items/<int:item_id>/edit-field", methods=["POST"])
 @login_required
@@ -951,10 +976,10 @@ def edit_item_field(item_id):
         return jsonify({"error": "Not found"}), 404
     data = request.get_json(force=True) or {}
     field = data.get("field", "")
-    if field not in _EDITABLE_ITEM_FIELDS:
+    if field not in _EDIT_FIELD_SQL:
         return jsonify({"error": "Invalid field"}), 400
     value = (data.get("value") or "").strip() or None
-    execute(f"UPDATE items SET {field} = ?, updated_at = datetime('now') WHERE id = ?", (value, item_id))
+    execute(_EDIT_FIELD_SQL[field], (value, item_id))
     return jsonify({"ok": True, "value": value or ""})
 
 
@@ -1073,19 +1098,27 @@ def upload_attachment(item_id):
     if not f or not f.filename:
         flash("No file selected.", "error")
         return redirect(url_for("item_detail", item_id=item_id))
-    ext = os.path.splitext(f.filename)[1].lower()
-    if ext not in ALLOWED_EXTENSIONS:
+    raw_ext = os.path.splitext(f.filename)[1].lower()
+    if raw_ext not in ALLOWED_EXTENSIONS:
         flash(f"File type not allowed. Accepted: jpg, png, heic, pdf.", "error")
         return redirect(url_for("item_detail", item_id=item_id))
+    # Re-derive ext from our allowlist to break taint chain
+    ext = next(e for e in ALLOWED_EXTENSIONS if e == raw_ext)
 
     unique = uuid.uuid4().hex
+    upload_dir_real = os.path.realpath(UPLOAD_DIR)
     is_image = ext in THUMB_EXTS
 
     if is_image:
         # Save original temporarily, convert to JPEG
-        tmp_path = os.path.join(UPLOAD_DIR, f"tmp_{unique}{ext}")
+        tmp_name = f"tmp_{unique}{ext}"
+        tmp_path = os.path.realpath(os.path.join(UPLOAD_DIR, tmp_name))
+        if not tmp_path.startswith(upload_dir_real + os.sep):
+            abort(400)
         stored_name = f"{unique}.jpg"
-        stored_path = os.path.join(UPLOAD_DIR, stored_name)
+        stored_path = os.path.realpath(os.path.join(UPLOAD_DIR, stored_name))
+        if not stored_path.startswith(upload_dir_real + os.sep):
+            abort(400)
         f.save(tmp_path)
         try:
             make_thumb(tmp_path, stored_path, size=(1600, 1600))
@@ -1097,9 +1130,11 @@ def upload_attachment(item_id):
         mime = "image/jpeg"
     else:
         stored_name = f"{unique}{ext}"
-        stored_path = os.path.join(UPLOAD_DIR, stored_name)
+        stored_path = os.path.realpath(os.path.join(UPLOAD_DIR, stored_name))
+        if not stored_path.startswith(upload_dir_real + os.sep):
+            abort(400)
         f.save(stored_path)
-        mime = mimetypes.guess_type(f.filename)[0] or "application/octet-stream"
+        mime = mimetypes.guess_type(stored_name)[0] or "application/octet-stream"
 
     execute(
         "INSERT INTO attachments (item_id, filename, original_name, mime_type) VALUES (?, ?, ?, ?)",
