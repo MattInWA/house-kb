@@ -772,6 +772,22 @@
 
     // Relationship graph
     setupRelGraph();
+
+    // Hamburger nav toggle
+    var navToggleBtn = document.querySelector('.nav-toggle');
+    var navEl = document.querySelector('.nav');
+    if (navToggleBtn && navEl) {
+      navToggleBtn.addEventListener('click', function () {
+        var open = navEl.classList.toggle('nav-open');
+        navToggleBtn.setAttribute('aria-expanded', String(open));
+      });
+      navEl.querySelectorAll('.nav-links a').forEach(function (link) {
+        link.addEventListener('click', function () {
+          navEl.classList.remove('nav-open');
+          navToggleBtn.setAttribute('aria-expanded', 'false');
+        });
+      });
+    }
   });
 
 }());

@@ -12,6 +12,9 @@
   {% if current_user %}
   <nav class="nav">
     <a href="{{ url_for('index') }}" class="nav-brand">⌂ House KB</a>
+    <button class="nav-toggle" aria-label="Open menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
     <div class="nav-links">
       <a href="{{ url_for('items') }}">Items</a>
       <a href="{{ url_for('locations') }}">Locations</a>
